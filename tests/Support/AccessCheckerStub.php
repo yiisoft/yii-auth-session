@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Yiisoft\Yii\Auth\Session\Tests\Support;
+
+use Yiisoft\Access\AccessCheckerInterface;
+
+use function in_array;
+
+final class AccessCheckerStub implements AccessCheckerInterface
+{
+    public function __construct(private array $allowPermissions = []) {}
+
+    public function userHasPermission($userId, string $permissionName, array $parameters = []): bool
+    {
+        return in_array($permissionName, $this->allowPermissions);
+    }
+}
