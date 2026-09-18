@@ -30,7 +30,7 @@ return [
 
     CookieLoginMiddleware::class => [
         '__construct()' => [
-            'forceAddCookie' => $params['yiisoft/yii-auth-session']['cookieLogin']['forceAddCookie'],
+            'forceAddCookiePolicy' => $params['yiisoft/yii-auth-session']['cookieLogin']['forceAddCookiePolicy']
         ],
     ],
 

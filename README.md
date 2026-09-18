@@ -328,14 +328,14 @@ public function login(
 
 In the above `rememberMe` in the request body may come from a "remember me" checkbox in the form. End user decides
 if he wants to be logged in automatically. If you do not need the user to be able to choose and want to always use
-"remember me", you can enable it via the `forceAddCookie` in `params.php`:
+"remember me", you can enable it via the `forceAddCookiePolicy` in `params.php`:
 
 ```php
 return [
     'yiisoft/yii-auth-session' => [
         'authUrl' => '/login',
         'cookieLogin' => [
-            'forceAddCookie' => true,
+            'forceAddCookiePolicy' => ForceAddCookiePolicy::Never, // AfterLoginForce adds the auto-login cookie only after login, while RenewDuringRequest adds/renews the auto-login cookie during each authenticated request
             'duration' => 'P5D', // 5 days
             'cookieSecure' => false, // whether the client should send back the cookie only over HTTPS connection
             'encryptorKey' => 'your-secret-random-string', // secret key to encrypt the auto-login cookie value, set it to `null` to store it unencrypted
