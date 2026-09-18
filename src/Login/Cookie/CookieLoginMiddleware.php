@@ -35,14 +35,14 @@ final class CookieLoginMiddleware implements MiddlewareInterface
      * @param IdentityRepositoryInterface $identityRepository The identity repository instance.
      * @param LoggerInterface $logger The logger instance.
      * @param CookieLogin $cookieLogin The cookie login instance.
-     * @param bool $forceAddCookie Whether to force add a cookie.
+     * @param ForceAddCookiePolicy $forceAddCookiePolicy Policy to force add a cookie.
      */
     public function __construct(
         private AuthManager $authManager,
         private IdentityRepositoryInterface $identityRepository,
         private LoggerInterface $logger,
         private CookieLogin $cookieLogin,
-        private bool $forceAddCookie = false,
+        private ForceAddCookiePolicy $forceAddCookiePolicy = ForceAddCookiePolicy::Never
     ) {}
 
     /**
@@ -62,7 +62,11 @@ final class CookieLoginMiddleware implements MiddlewareInterface
         $response = $handler->handle($request);
         $guestAfterHandle = !$this->authManager->isAuthenticated();
 
-        if ($this->forceAddCookie && $guestBeforeHandle && !$guestAfterHandle) {
+        if (($this->forceAddCookiePolicy === ForceAddCookiePolicy::AfterLogin &&
+                $guestBeforeHandle &&
+                !$guestAfterHandle) ||
+            ($this->forceAddCookiePolicy === ForceAddCookiePolicy::RenewDuringRequest &&
+                !$guestAfterHandle)) {
             $identity = $this->authManager->getIdentity();
 
             if ($identity instanceof CookieLoginIdentityInterface) {

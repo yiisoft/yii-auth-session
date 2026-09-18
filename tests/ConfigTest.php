@@ -23,6 +23,7 @@ use Yiisoft\Yii\Auth\Session\Guest\GuestIdentityFactory;
 use Yiisoft\Yii\Auth\Session\Guest\GuestIdentityFactoryInterface;
 use Yiisoft\Yii\Auth\Session\Login\Cookie\CookieLogin;
 use Yiisoft\Yii\Auth\Session\Login\Cookie\CookieLoginMiddleware;
+use Yiisoft\Yii\Auth\Session\Login\Cookie\ForceAddCookiePolicy;
 use Yiisoft\Yii\Auth\Session\Login\LoginMiddleware;
 use Yiisoft\Yii\Auth\Session\Tests\Support\MockIdentityRepository;
 use Yiisoft\Di\BuildingException;
@@ -63,7 +64,7 @@ final class ConfigTest extends TestCase
             'yiisoft/yii-auth-session' => [
                 'authUrl' => '/override',
                 'cookieLogin' => [
-                    'forceAddCookie' => true,
+                    'forceAddCookiePolicy' => ForceAddCookiePolicy::AfterLogin,
                     'duration' => 'P2D',
                     'cookieSecure' => true,
                     'encryptorKey' => null,
@@ -86,7 +87,7 @@ final class ConfigTest extends TestCase
         $cookieLoginMiddleware = $container->get(CookieLoginMiddleware::class);
 
         $this->assertInstanceOf(CookieLoginMiddleware::class, $cookieLoginMiddleware);
-        $this->assertTrue($this->getInaccessibleProperty($cookieLoginMiddleware, 'forceAddCookie'));
+        $this->assertSame(ForceAddCookiePolicy::AfterLogin, $this->getInaccessibleProperty($cookieLoginMiddleware, 'forceAddCookiePolicy'));
     }
 
     private function createContainer(?array $params = null): Container

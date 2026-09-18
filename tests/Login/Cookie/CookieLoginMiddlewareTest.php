@@ -18,6 +18,7 @@ use Yiisoft\Yii\Auth\Session\Event\AfterLogin;
 use Yiisoft\Yii\Auth\Session\Event\BeforeLogin;
 use Yiisoft\Yii\Auth\Session\Login\Cookie\CookieLogin;
 use Yiisoft\Yii\Auth\Session\Login\Cookie\CookieLoginMiddleware;
+use Yiisoft\Yii\Auth\Session\Login\Cookie\ForceAddCookiePolicy;
 use Yiisoft\Yii\Auth\Session\Tests\Support\MockArraySessionStorage;
 use Yiisoft\Yii\Auth\Session\Tests\Support\MockIdentityRepository;
 use Yiisoft\Yii\Auth\Session\Tests\Support\CookieLoginIdentity;
@@ -405,16 +406,7 @@ final class CookieLoginMiddlewareTest extends TestCase
         );
     }
 
-    public static function forceAddCookieDataProvider(): array
-    {
-        return [
-            'true' => [true],
-            'false' => [false],
-        ];
-    }
-
-    #[DataProvider('forceAddCookieDataProvider')]
-    public function testForceAddCookieAfterLoginAndNotManualLogin(bool $forceAddCookie): void
+    public function testForceAddCookiePolicyNeverAfterLoginAndWithoutAutoLoginCookie(): void
     {
         $AuthManager = $this->createAuthManager();
 
@@ -423,67 +415,7 @@ final class CookieLoginMiddlewareTest extends TestCase
             $this->getCookieLoginIdentityRepository(),
             $this->logger,
             $this->createCookieLogin(),
-            $forceAddCookie,
-        );
-
-        $handler = $this->createMock(RequestHandlerInterface::class);
-        $handler
-            ->expects($this->once())
-            ->method('handle')
-            ->willReturn(new Response());
-        $response = $middleware->process($this->getRequestWithAutoLoginCookie(), $handler);
-
-        $this->assertNull($this->getLastLogMessage());
-        $this->assertFalse(!$AuthManager->isAuthenticated());
-        $this->assertEmpty($response->getHeaderLine('Set-Cookie'));
-    }
-
-    #[DataProvider('forceAddCookieDataProvider')]
-    public function testForceAddCookieAfterLoginAndManualLoginAndManualAddCookie(bool $forceAddCookie): void
-    {
-        $cookieLogin = $this->createCookieLogin();
-        $AuthManager = $this->createAuthManager();
-
-        $middleware = new CookieLoginMiddleware(
-            $AuthManager,
-            $this->getCookieLoginIdentityRepository(),
-            $this->logger,
-            $this->createCookieLogin(),
-            $forceAddCookie,
-        );
-
-        $handler = $this->createMock(RequestHandlerInterface::class);
-        $handler
-            ->expects($this->once())
-            ->method('handle')
-            ->willReturnCallback(static function () use ($cookieLogin, $AuthManager) {
-                $identity = new CookieLoginIdentity();
-                $AuthManager->login($identity);
-                return $cookieLogin->addCookie($identity, new Response());
-            });
-
-        $response = $middleware->process($this->getRequestWithAutoLoginCookie(), $handler);
-
-        $this->assertNull($this->getLastLogMessage());
-        $this->assertFalse(!$AuthManager->isAuthenticated());
-        $this->assertMatchesRegularExpression(
-            '#autoLogin=%5B%2242%22%2C%22auto-login-key-correct%22%2C[0-9]{10}%5D;'
-            . ' Expires=.*?; Max-Age=604800; Path=/; Secure; HttpOnly; SameSite=Lax#',
-            $response->getHeaderLine('Set-Cookie'),
-        );
-    }
-
-    #[DataProvider('forceAddCookieDataProvider')]
-    public function testForceAddCookieAfterLoginAndManualLoginAndNotManualAddCookie(bool $forceAddCookie): void
-    {
-        $AuthManager = $this->createAuthManager();
-
-        $middleware = new CookieLoginMiddleware(
-            $AuthManager,
-            $this->getCookieLoginIdentityRepository(),
-            $this->logger,
-            $this->createCookieLogin(),
-            $forceAddCookie,
+            ForceAddCookiePolicy::Never,
         );
 
         $handler = $this->createMock(RequestHandlerInterface::class);
@@ -498,9 +430,77 @@ final class CookieLoginMiddlewareTest extends TestCase
         $response = $middleware->process($this->getRequestWithCookies([]), $handler);
 
         $this->assertNull($this->getLastLogMessage());
-        $this->assertFalse(!$AuthManager->isAuthenticated());
+        $this->assertTrue($AuthManager->isAuthenticated());
 
-        if ($forceAddCookie) {
+        $this->assertEmpty($response->getHeaderLine('Set-Cookie'));
+    }
+
+    public function testForceAddCookiePolicyAfterLoginAfterLoginAndWithoutAutoLoginCookie(): void
+    {
+        $AuthManager = $this->createAuthManager();
+
+        $middleware = new CookieLoginMiddleware(
+            $AuthManager,
+            $this->getCookieLoginIdentityRepository(),
+            $this->logger,
+            $this->createCookieLogin(),
+            ForceAddCookiePolicy::AfterLogin,
+        );
+
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler
+            ->expects($this->once())
+            ->method('handle')
+            ->willReturnCallback(static function () use ($AuthManager) {
+                $AuthManager->login(new CookieLoginIdentity());
+                return new Response();
+            });
+
+        $response = $middleware->process($this->getRequestWithCookies([]), $handler);
+
+        $this->assertNull($this->getLastLogMessage());
+        $this->assertTrue($AuthManager->isAuthenticated());
+
+        $this->assertMatchesRegularExpression(
+            '#autoLogin=%5B%2242%22%2C%22auto-login-key-correct%22%2C[0-9]{10}%5D;'
+            . ' Expires=.*?; Max-Age=604800; Path=/; Secure; HttpOnly; SameSite=Lax#',
+            $response->getHeaderLine('Set-Cookie'),
+        );
+    }
+
+    public static function forceAddCookiePolicyDataProvider(): array
+    {
+        return [
+            'Never' => [ForceAddCookiePolicy::Never],
+            'AfterLogin' => [ForceAddCookiePolicy::AfterLogin],
+            'RenewDuringRequest' => [ForceAddCookiePolicy::RenewDuringRequest],
+        ];
+    }
+
+    #[DataProvider('forceAddCookiePolicyDataProvider')]
+    public function testForceAddCookiePolicyWithAutoLoginCookie(ForceAddCookiePolicy $forceAddCookiePolicy): void
+    {
+        $AuthManager = $this->createAuthManager();
+
+        $middleware = new CookieLoginMiddleware(
+            $AuthManager,
+            $this->getCookieLoginIdentityRepository(),
+            $this->logger,
+            $this->createCookieLogin(),
+            $forceAddCookiePolicy
+        );
+
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler
+            ->expects($this->once())
+            ->method('handle')
+            ->willReturn(new Response());
+        $response = $middleware->process($this->getRequestWithAutoLoginCookie(), $handler);
+
+        $this->assertNull($this->getLastLogMessage());
+        $this->assertTrue($AuthManager->isAuthenticated());
+
+        if ($forceAddCookiePolicy === ForceAddCookiePolicy::RenewDuringRequest) {
             $this->assertMatchesRegularExpression(
                 '#autoLogin=%5B%2242%22%2C%22auto-login-key-correct%22%2C[0-9]{10}%5D;'
                 . ' Expires=.*?; Max-Age=604800; Path=/; Secure; HttpOnly; SameSite=Lax#',
